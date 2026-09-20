@@ -295,6 +295,7 @@ extension ContentView {
             }
             .shadow(radius: 10)
             .panelLiquidGlass(cornerRadius: 16)
+            .environment(\.colorScheme, .dark)
     }
 
     var statusRequiresInteraction: Bool {

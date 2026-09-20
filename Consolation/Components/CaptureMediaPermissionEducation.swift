@@ -43,16 +43,16 @@ struct CaptureMediaPermissionEducationNotice: View {
                 permissionText(
                     "You will be asked to allow Camera and Microphone access, which\n" +
                     "is required because macOS treats Capture Cards as Webcams.",
-                    color: Color.primary.opacity(0.65)
+                    color: Color.white.opacity(0.75)
                 )
                 #else
                 permissionText(
                     "You will be asked to allow Camera and Microphone access, which\n" +
                     "is required because iPad treats Capture Cards as Webcams.",
-                    color: Color.primary.opacity(0.65)
+                    color: Color.white.opacity(0.75)
                 )
                 #endif
-                Divider()
+                StartupDivider()
             case .deniedOrRestricted:
                 #if os(macOS)
                 permissionText(
@@ -67,7 +67,7 @@ struct CaptureMediaPermissionEducationNotice: View {
                     color: .red
                 )
                 #endif
-                Divider()
+                StartupDivider()
             }
         }
     }

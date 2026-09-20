@@ -24,7 +24,7 @@ struct ContentViewStartScreen: View {
         VStack {
             VStack(spacing: 16) {
                 header
-                Divider()
+                StartupDivider()
                 statusLine
                 mediaPermissionNotice
                 deviceControls
@@ -83,7 +83,7 @@ struct ContentViewStartScreen: View {
 
     private var startButton: some View {
         Group {
-            Divider()
+            StartupDivider()
             ContentViewStartWatchingButton(capture: capture)
         }
     }
@@ -98,5 +98,12 @@ struct ContentViewStartScreen: View {
                 isShowingAbout = true
             }
         }
+    }
+}
+
+struct StartupDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(Color.white.opacity(0.42))
     }
 }
