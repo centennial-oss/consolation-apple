@@ -100,7 +100,7 @@ extension CaptureSessionManager {
         state = .noDevice
         statusMessage = "Video device disconnected."
         Task {
-            await backend.stopWatching(with: session)
+            await stopBackendCapture()
             self.refreshVideoDeviceUniverse(reconcileSelection: true)
             self.activeSessionVideoDeviceUniqueID = nil
             if self.hasNoVideoDevices {

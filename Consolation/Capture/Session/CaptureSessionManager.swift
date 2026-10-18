@@ -4,7 +4,8 @@
 //
 
 // `AVCaptureSession` has no Sendable annotation, yet it is deliberately shared between the main-actor preview
-// layers and `CaptureSessionBackend`, which serializes every mutation.
+// layers and `CaptureSessionBackend`, which serializes every mutation. Every hand-off of `session` to the backend
+// stays in this file, under this import: Xcode 26's compiler (CI's) rejects the hand-off anywhere else.
 @preconcurrency import AVFoundation
 import Foundation
 import Observation
@@ -250,7 +251,7 @@ final class CaptureSessionManager {
     func stopWatching() {
         nominalVideoFrameRate = nil
         Task {
-            await backend.stopWatching(with: session)
+            await stopBackendCapture()
             self.state = .idle
             self.statusMessage = nil
             self.activeSessionVideoDeviceUniqueID = nil
@@ -289,6 +290,15 @@ final class CaptureSessionManager {
         Task {
             await backend.setAudioBufferLength(normalizedLength)
         }
+    }
+}
+
+// MARK: - Backend hand-off
+
+extension CaptureSessionManager {
+    /// Stops capture on the backend and tears down its inputs and outputs.
+    func stopBackendCapture() async {
+        await backend.stopWatching(with: session)
     }
 }
 
