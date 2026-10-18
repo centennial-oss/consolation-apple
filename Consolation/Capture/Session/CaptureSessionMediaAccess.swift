@@ -3,7 +3,7 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import Foundation
 
 enum CaptureSessionMediaAccess {
@@ -13,11 +13,7 @@ enum CaptureSessionMediaAccess {
         case .authorized:
             return true
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .video) { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
+            return await AVCaptureDevice.requestAccess(for: .video)
         case .denied, .restricted:
             return false
         @unknown default:
@@ -31,11 +27,7 @@ enum CaptureSessionMediaAccess {
         case .authorized:
             return true
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
+            return await AVCaptureDevice.requestAccess(for: .audio)
         case .denied, .restricted:
             return false
         @unknown default:

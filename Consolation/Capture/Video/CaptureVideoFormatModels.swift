@@ -3,7 +3,7 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import Foundation
 
 // MARK: - Resolution / frame rate menu (connect panel)

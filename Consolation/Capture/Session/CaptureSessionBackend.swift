@@ -3,7 +3,7 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import Foundation
 
 /// Serializes `AVCaptureSession` configuration and `startRunning` / `stopRunning`.
@@ -170,9 +170,9 @@ actor CaptureSessionBackend {
         output.alwaysDiscardsLateVideoFrames = true
 
         let monitor = CaptureVideoFrameRateMonitor()
-        monitor.onStatsInterval = { [weak output] stats in
-            guard output != nil else { return }
-            Task { await self.publishVideoStats(stats) }
+        let monitorID = ObjectIdentifier(monitor)
+        monitor.onStatsInterval = { stats in
+            Task { await self.publishVideoStats(stats, from: monitorID) }
         }
         output.setSampleBufferDelegate(monitor, queue: monitor.queue)
 
@@ -186,7 +186,9 @@ actor CaptureSessionBackend {
         videoFrameRateMonitor = monitor
     }
 
-    private func publishVideoStats(_ stats: CaptureVideoFrameRateStats) {
+    /// Drops samples from a monitor that has since been torn down or replaced.
+    private func publishVideoStats(_ stats: CaptureVideoFrameRateStats, from monitorID: ObjectIdentifier) {
+        guard let current = videoFrameRateMonitor, ObjectIdentifier(current) == monitorID else { return }
         videoStatsUpdateHandler?(stats)
     }
 

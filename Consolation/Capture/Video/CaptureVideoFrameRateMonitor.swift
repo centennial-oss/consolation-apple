@@ -3,10 +3,10 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import Foundation
 
-struct CaptureVideoFrameRateStats: Sendable {
+struct CaptureVideoFrameRateStats: Equatable, Sendable {
     let wallFPS: Double
     let presentationFPS: Double
     let frames: Int

@@ -1,4 +1,3 @@
-import AVFoundation
 import Foundation
 import SwiftUI
 
@@ -24,10 +23,10 @@ extension ContentView {
     }
 
     var videoStatsLabel: String? {
-        guard let stats = latestVideoFrameRateStats else { return nil }
+        guard let stats = capture.videoFrameRateStats else { return nil }
         let resolution = resolutionLabel
         let measured = Int(stats.presentationFPS.rounded())
-        let configuredFPS = statsOverlayConfiguredFPS(fallbackMeasured: measured)
+        let configuredFPS = capture.configuredVideoFrameRate(fallbackMeasured: measured)
         let stutter = formatThreeDecimals(stats.maxPresentationGap)
         return "Res: \(resolution) @ \(configuredFPS) | " +
             "FPS: \(stats.frames) | Drops: \(stats.droppedFrames) | Stutter: \(stutter)"
@@ -36,11 +35,11 @@ extension ContentView {
     var shouldShowMaxFPSWarning: Bool {
         capture.state == .running &&
             !disableLowFPSWarningOverlay &&
-            lowMaxFPSWarningPollCount >= maxFPSWarningPollThreshold
+            capture.lowFrameRateSampleStreak >= maxFPSWarningPollThreshold
     }
 
     var maxFPSWarningLabel: String? {
-        guard let stats = latestVideoFrameRateStats else { return nil }
+        guard let stats = capture.videoFrameRateStats else { return nil }
         return "FPS: \(stats.frames)"
     }
 
@@ -49,31 +48,6 @@ extension ContentView {
             return .bottomRight
         }
         return .bottomLeft
-    }
-
-    func updateMaxFPSWarningPollCount(with stats: CaptureVideoFrameRateStats) {
-        let configuredFPS = statsOverlayConfiguredFPS(fallbackMeasured: stats.frames)
-        if configuredFPS - stats.frames > 10 {
-            lowMaxFPSWarningPollCount += 1
-        } else {
-            lowMaxFPSWarningPollCount = 0
-        }
-    }
-
-    /// Prefer connect-panel selection; device-reported nominal can lag across stop/start.
-    func statsOverlayConfiguredFPS(fallbackMeasured: Int) -> Int {
-        if let id = capture.selectedVideoDeviceUniqueID,
-           let device = AVCaptureDevice(uniqueID: id),
-           let eff = CaptureFormatSelector.effectiveFormatForDisplay(
-               device: device,
-               preferences: capture.formatPreferences
-           ) {
-            return Int(eff.frameRate.rounded())
-        }
-        if let nominal = capture.nominalVideoFrameRate {
-            return Int(nominal.rounded())
-        }
-        return fallbackMeasured
     }
 
     var resolutionLabel: String {

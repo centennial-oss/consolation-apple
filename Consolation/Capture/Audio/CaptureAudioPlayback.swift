@@ -7,7 +7,7 @@ import AVFoundation
 import AudioToolbox
 import Foundation
 #if os(iOS)
-@preconcurrency import AVFAudio
+import AVFAudio
 #endif
 
 /// Plays PCM audio from `AVCaptureAudioDataOutput` through `AVAudioEngine` (no recording, no files).

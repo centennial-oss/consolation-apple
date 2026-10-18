@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct ContentViewStartWatchingButton: View {
-    @ObservedObject var capture: CaptureSessionManager
+    let capture: CaptureSessionManager
     @State private var isHovered = false
 
     var body: some View {

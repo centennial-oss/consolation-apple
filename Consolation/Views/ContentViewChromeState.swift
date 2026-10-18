@@ -63,18 +63,15 @@ extension ContentView {
         revealTransientChromeIfNeeded()
 
         hoverTask = Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                guard capture.state == .running else { return }
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    isUIHidden = true
-                }
-                #if os(macOS)
-                window?.standardWindowButton(.closeButton)?.superview?.animator().alphaValue = 0.0
-                NSCursor.setHiddenUntilMouseMoves(true)
-                #endif
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, capture.state == .running else { return }
+            withAnimation(.easeInOut(duration: 0.5)) {
+                isUIHidden = true
             }
+            #if os(macOS)
+            window?.standardWindowButton(.closeButton)?.superview?.animator().alphaValue = 0.0
+            NSCursor.setHiddenUntilMouseMoves(true)
+            #endif
         }
     }
 }

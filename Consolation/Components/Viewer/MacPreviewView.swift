@@ -14,7 +14,7 @@ final class MacPreviewView: NSView {
     private var previewZoomScale: CGFloat = 1
     private var previewPanOffset: CGSize = .zero
     private var shiftDragOrigin: NSPoint?
-    private var transformObserver: NSObjectProtocol?
+    private var transformObservation: Task<Void, Never>?
 
     override init(frame frameRect: CGRect) {
         super.init(frame: frameRect)
@@ -22,19 +22,16 @@ final class MacPreviewView: NSView {
         layer?.addSublayer(previewLayer)
         previewLayer.videoGravity = .resizeAspect
         previewLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        transformObserver = NotificationCenter.default.addObserver(
-            forName: CaptureVideoPreviewTransformUserDefaults.changedNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.applyPreviewConnectionSettings()
+        transformObservation = Task { [weak self] in
+            let name = CaptureVideoPreviewTransformUserDefaults.changedNotification
+            for await _ in NotificationCenter.default.notifications(named: name) {
+                self?.applyPreviewConnectionSettings()
+            }
         }
     }
 
     deinit {
-        if let transformObserver {
-            NotificationCenter.default.removeObserver(transformObserver)
-        }
+        transformObservation?.cancel()
     }
 
     @available(*, unavailable)

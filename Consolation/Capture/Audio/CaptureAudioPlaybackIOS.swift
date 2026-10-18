@@ -91,12 +91,9 @@ extension CaptureAudioPlayback {
             resetEngineOnIOSMain()
             return
         }
-        let semaphore = DispatchSemaphore(value: 0)
-        DispatchQueue.main.async {
+        DispatchQueue.main.sync {
             self.resetEngineOnIOSMain()
-            semaphore.signal()
         }
-        semaphore.wait()
     }
 
     /// `AVAudioEngine` start/stop/attach must run on the main thread on iOS; capture callbacks do not.
@@ -105,19 +102,8 @@ extension CaptureAudioPlayback {
             try wireEngineOnIOSMain(with: format)
             return
         }
-        var thrown: Error?
-        let semaphore = DispatchSemaphore(value: 0)
-        DispatchQueue.main.async {
-            do {
-                try self.wireEngineOnIOSMain(with: format)
-            } catch {
-                thrown = error
-            }
-            semaphore.signal()
-        }
-        semaphore.wait()
-        if let thrown {
-            throw thrown
+        try DispatchQueue.main.sync {
+            try self.wireEngineOnIOSMain(with: format)
         }
     }
 

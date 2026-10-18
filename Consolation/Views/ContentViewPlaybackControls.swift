@@ -21,7 +21,6 @@ extension ContentView {
         .padding(.bottom, playbackControlsBottomPadding)
         #if os(macOS)
         .offset(playbackControlsCurrentOffset)
-        .simultaneousGesture(playbackControlsDragGesture)
         .onHover { isHovering in
             isPlaybackControlsHoverActive = isHovering
             if isHovering {
@@ -142,13 +141,19 @@ extension ContentView {
                 isPresented: $isPlaybackSettingsMenuPresented,
                 onPresentedChanged: handlePlaybackSettingsMenuPresentedChanged(_:)
             ) {
-                IPadSettingsMenuContent(selectedVideoDeviceUniqueID: capture.selectedVideoDeviceUniqueID)
+                IPadSettingsMenuContent(
+                    capture: capture,
+                    selectedVideoDeviceUniqueID: capture.selectedVideoDeviceUniqueID
+                )
             }
             .equatable()
             #endif
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+        #if os(macOS)
+        .background { playbackControlsDragSurface }
+        #endif
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 42, style: .continuous))
         .shadow(radius: 8)
         .panelLiquidGlass(cornerRadius: 42)
@@ -160,6 +165,16 @@ extension ContentView {
             }
         }
     }
+
+    #if os(macOS)
+    /// Drag handle for moving the bar: the gaps, padding and dividers between controls. It sits behind the
+    /// controls rather than on the bar itself, so a drag that starts on a slider or button never moves the bar.
+    private var playbackControlsDragSurface: some View {
+        Color.clear
+            .contentShape(RoundedRectangle(cornerRadius: 42, style: .continuous))
+            .gesture(playbackControlsDragGesture)
+    }
+    #endif
 
     var playbackControlsInteractionGesture: some Gesture {
         DragGesture(minimumDistance: 0)

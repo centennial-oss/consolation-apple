@@ -67,6 +67,7 @@ struct PlaybackToolbarMenu<Content: View>: View, Equatable {
 }
 
 struct IPadSettingsMenuContent: View, Equatable {
+    let capture: CaptureSessionManager
     let selectedVideoDeviceUniqueID: String?
 
     @Environment(\.dismiss) private var dismiss
@@ -75,13 +76,11 @@ struct IPadSettingsMenuContent: View, Equatable {
     @AppStorage(CaptureVideoStatsUserDefaults.statsLocationKey)
     var videoStatsLocationRawValue = CaptureVideoStatsUserDefaults.defaultLocation
     @AppStorage(CaptureVideoStatsUserDefaults.disableLowFPSWarningKey) var disableLowFPSWarningOverlay = false
-    @AppStorage(CaptureAudioUserDefaults.bufferLengthKey)
-    private var audioBufferLength = CaptureAudioUserDefaults.defaultBufferLength
 
     @State private var previewTransformMenuRefresh = 0
 
     static func == (lhs: IPadSettingsMenuContent, rhs: IPadSettingsMenuContent) -> Bool {
-        lhs.selectedVideoDeviceUniqueID == rhs.selectedVideoDeviceUniqueID
+        lhs.capture === rhs.capture && lhs.selectedVideoDeviceUniqueID == rhs.selectedVideoDeviceUniqueID
     }
 
     var body: some View {
@@ -285,11 +284,10 @@ struct IPadSettingsMenuContent: View, Equatable {
             ? "\(length) (default)"
             : "\(length)"
         Button {
-            audioBufferLength = length
-            NotificationCenter.default.post(name: .audioBufferLengthCommand, object: length)
+            capture.setAudioBufferLength(length)
             dismissPopoverAfterSelection()
         } label: {
-            if audioBufferLength == length {
+            if capture.audioBufferLength == length {
                 Label(label, systemImage: "checkmark")
             } else {
                 Text(label)

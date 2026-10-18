@@ -3,7 +3,7 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import Foundation
 
 // MARK: - USB UVC capture device identification

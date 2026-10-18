@@ -6,7 +6,7 @@
 import AVFoundation
 import Foundation
 #if os(iOS)
-@preconcurrency import AVFAudio
+import AVFAudio
 #endif
 
 enum CaptureAudioDeviceSelection {

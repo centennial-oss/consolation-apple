@@ -7,7 +7,7 @@
 import AVFoundation
 import AudioToolbox
 import Foundation
-@preconcurrency import AVFAudio
+import AVFAudio
 
 enum CaptureAudioIOSPCMUtilities {
     nonisolated static func normalizedFloatFormat(source: AVAudioFormat) -> AVAudioFormat {

@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 struct ContentView: View {
-    @ObservedObject var capture: CaptureSessionManager
+    let capture: CaptureSessionManager
     @Environment(\.scenePhase) private var scenePhase
     #if os(macOS)
     @State var window: NSWindow?
@@ -34,8 +34,6 @@ struct ContentView: View {
     @AppStorage(CaptureVideoStatsUserDefaults.statsLocationKey) var videoStatsLocationRawValue =
         CaptureVideoStatsUserDefaults.defaultLocation
     @AppStorage(CaptureVideoStatsUserDefaults.disableLowFPSWarningKey) var disableLowFPSWarningOverlay = false
-    @State var latestVideoFrameRateStats: CaptureVideoFrameRateStats?
-    @State var lowMaxFPSWarningPollCount = 0
     @State var isShowingMaxFPSInfo = false
     #if os(macOS)
     @AppStorage(ViewerWindowUserDefaults.isAlwaysOnTopKey) var isViewerWindowAlwaysOnTop = false
@@ -70,8 +68,6 @@ struct ContentView: View {
             PlaybackDisplayWakeLock.setActive(state == .running)
             if state != .running {
                 cancelAutoHideChrome()
-                latestVideoFrameRateStats = nil
-                lowMaxFPSWarningPollCount = 0
             }
             if oldState != .running, state == .running {
                 #if os(macOS)
@@ -153,22 +149,6 @@ struct ContentView: View {
             resetHoverTimer()
         }
         #endif
-        .onReceive(NotificationCenter.default.publisher(for: .audioMuteToggleCommand)) { notification in
-            guard let muted = notification.object as? Bool else { return }
-            capture.setAudioMuted(muted)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .audioVolumeLevelCommand)) { notification in
-            guard let level = notification.object as? Double else { return }
-            capture.setVolumeLevel(level)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .audioBufferLengthCommand)) { notification in
-            guard let length = notification.object as? Int else { return }
-            capture.setAudioBufferLength(length)
-        }
-        .onReceive(capture.videoFrameRateStatsPublisher) { stats in
-            latestVideoFrameRateStats = stats
-            updateMaxFPSWarningPollCount(with: stats)
-        }
         .onReceive(NotificationCenter.default.publisher(for: .showAboutCommand)) { _ in
             isShowingAbout = true
         }
@@ -313,7 +293,8 @@ extension ContentView {
     }
 
     var playbackControlsDragGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
+        // Global space: the gesture lives inside the bar it moves, so a local translation would chase itself.
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
             .updating($playbackControlsDragOffset) { value, state, _ in
                 state = value.translation
             }

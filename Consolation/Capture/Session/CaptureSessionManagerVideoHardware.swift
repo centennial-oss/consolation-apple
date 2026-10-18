@@ -3,26 +3,22 @@
 //  Consolation
 //
 
-@preconcurrency import AVFoundation
-import Combine
+import AVFoundation
 import Foundation
 
 extension CaptureSessionManager {
     func beginObservingVideoHardwareChanges() {
         refreshExternalCapturePresence()
 
-        let connected = NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
-        let disconnected = NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)
-
-        Publishers.Merge(
-            connected.map { _ in () },
-            disconnected.map { _ in () }
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self] _ in
-            self?.handleVideoHardwareChanged()
+        // AVFoundation may post these off the main thread; each loop resumes on the main actor.
+        let names = [AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification]
+        hardwareObservationTasks = names.map { name in
+            Task { [weak self] in
+                for await _ in NotificationCenter.default.notifications(named: name) {
+                    self?.handleVideoHardwareChanged()
+                }
+            }
         }
-        .store(in: &hardwareCancellables)
     }
 
     func handleVideoHardwareChanged() {
@@ -103,7 +99,7 @@ extension CaptureSessionManager {
     func stopWatchingAfterDeviceDisconnect() {
         state = .noDevice
         statusMessage = "Video device disconnected."
-        Task { @MainActor in
+        Task {
             await backend.stopWatching(with: session)
             self.refreshVideoDeviceUniverse(reconcileSelection: true)
             self.activeSessionVideoDeviceUniqueID = nil

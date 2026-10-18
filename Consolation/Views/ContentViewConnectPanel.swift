@@ -7,7 +7,7 @@ import AVFoundation
 import SwiftUI
 
 struct ContentViewConnectPanel: View {
-    @ObservedObject var capture: CaptureSessionManager
+    let capture: CaptureSessionManager
     @State private var compatibilityIssueForSheet: CaptureDeviceCompatibilityIssue?
 
     var body: some View {

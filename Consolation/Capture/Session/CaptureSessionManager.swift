@@ -3,9 +3,11 @@
 //  Consolation
 //
 
+// `AVCaptureSession` has no Sendable annotation, yet it is deliberately shared between the main-actor preview
+// layers and `CaptureSessionBackend`, which serializes every mutation.
 @preconcurrency import AVFoundation
-import Combine
 import Foundation
+import Observation
 
 struct CaptureDeviceSummary: Identifiable, Hashable, Sendable {
     let id: String
@@ -14,58 +16,70 @@ struct CaptureDeviceSummary: Identifiable, Hashable, Sendable {
 
 /// Owns the shared `AVCaptureSession` for preview layers and publishes UI state on the main actor.
 @MainActor
-final class CaptureSessionManager: ObservableObject {
-    @Published var state: CaptureState = .idle
+@Observable
+final class CaptureSessionManager {
+    var state: CaptureState = .idle {
+        didSet {
+            if state != .running { clearVideoFrameRateStats() }
+        }
+    }
 
     /// Device name while running, or auxiliary detail for failures.
-    @Published var statusMessage: String?
+    var statusMessage: String?
 
     /// True when at least one non-Continuity external video device is present (USB capture path).
-    @Published private(set) var isExternalCaptureDeviceConnected = false
+    private(set) var isExternalCaptureDeviceConnected = false
 
     /// Localized name of the currently detected USB video capture device, when present.
-    @Published private(set) var externalCaptureDeviceName: String?
+    private(set) var externalCaptureDeviceName: String?
 
     /// USB capture cards (UVC) vs built-in / Continuity / other cameras, for the connect panel.
-    @Published var usbCaptureDeviceEntries: [CaptureDeviceSummary] = []
-    @Published var cameraDeviceEntries: [CaptureDeviceSummary] = []
+    var usbCaptureDeviceEntries: [CaptureDeviceSummary] = []
+    var cameraDeviceEntries: [CaptureDeviceSummary] = []
 
     /// `true` when discovery finds no video devices at all.
-    @Published var hasNoVideoDevices = true
+    var hasNoVideoDevices = true
 
     /// Persisted choice for the connect panel; `nil` only before the first successful refresh.
-    @Published var selectedVideoDeviceUniqueID: String?
+    var selectedVideoDeviceUniqueID: String?
 
     /// Live audio from the capture card is audible when `false`.
     /// Persisted across launches; see `CaptureAudioUserDefaults`.
-    @Published var isAudioMuted: Bool
+    var isAudioMuted: Bool
 
     /// Live audio output level, separate from mute so unmuting restores the prior level.
-    @Published var volumeLevel: Double
+    var volumeLevel: Double
 
     /// Max number of queued PCM buffers kept pending in `CaptureAudioPlayback`.
-    @Published var audioBufferLength: Int
+    var audioBufferLength: Int
 
     /// Published dimensions of the currently active video feed to inform UI aspect ratio logic natively.
-    @Published var videoSize: CGSize?
+    var videoSize: CGSize?
 
     /// Locked nominal capture rate after session start (from device min/max frame duration); stats overlay uses this.
-    @Published var nominalVideoFrameRate: Double?
-    let videoFrameRateStatsPublisher = PassthroughSubject<CaptureVideoFrameRateStats, Never>()
+    var nominalVideoFrameRate: Double?
+
+    /// Latest once-per-second delivery sample from the video data output while running; `nil` otherwise.
+    /// Written only by `receiveVideoFrameRateStats(_:)` and `clearVideoFrameRateStats()`.
+    var videoFrameRateStats: CaptureVideoFrameRateStats?
+
+    /// Consecutive samples delivered well below the configured frame rate; drives the low-FPS warning overlay.
+    var lowFrameRateSampleStreak = 0
 
     /// Idle-card notice for camera/mic: undecided, denied in Settings, or `none` when both allowed.
-    @Published private(set) var mediaPermissionNotice: CaptureMediaPermissionNotice = .none
+    private(set) var mediaPermissionNotice: CaptureMediaPermissionNotice = .none
 
     /// Shared with `AVCaptureVideoPreviewLayer`; mutations happen only on `CaptureSessionBackend`.
     nonisolated let session = AVCaptureSession()
 
-    let backend = CaptureSessionBackend()
-    var hardwareCancellables = Set<AnyCancellable>()
-    var activeSessionVideoDeviceUniqueID: String?
-    var lastLoggedVideoCapabilitiesSignature: String?
+    @ObservationIgnored let backend = CaptureSessionBackend()
+    /// Device connect / disconnect observers; cancelled when the manager goes away.
+    @ObservationIgnored var hardwareObservationTasks: [Task<Void, Never>] = []
+    @ObservationIgnored var activeSessionVideoDeviceUniqueID: String?
+    @ObservationIgnored var lastLoggedVideoCapabilitiesSignature: String?
 
     /// Resolved before each `startWatching`; published so the connect panel updates labels and checkmarks.
-    @Published var formatPreferences: CaptureVideoFormatPreferences
+    var formatPreferences: CaptureVideoFormatPreferences
 
     /// Pass `nil` to load the built-in default today, and later persisted values.
     init(formatPreferences: CaptureVideoFormatPreferences? = nil) {
@@ -78,15 +92,18 @@ final class CaptureSessionManager: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             await self.backend.setVideoStatsUpdateHandler { [weak self] stats in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.videoFrameRateStatsPublisher.send(stats)
+                Task { @MainActor [weak self] in
+                    self?.receiveVideoFrameRateStats(stats)
                 }
             }
         }
         beginObservingVideoHardwareChanges()
         refreshVideoDeviceUniverse(reconcileSelection: true)
         refreshMediaCaptureAuthorizationStatuses()
+    }
+
+    deinit {
+        hardwareObservationTasks.forEach { $0.cancel() }
     }
 
     func refreshMediaCaptureAuthorizationStatuses() {
@@ -232,7 +249,7 @@ final class CaptureSessionManager: ObservableObject {
 
     func stopWatching() {
         nominalVideoFrameRate = nil
-        Task { @MainActor in
+        Task {
             await backend.stopWatching(with: session)
             self.state = .idle
             self.statusMessage = nil
@@ -273,8 +290,12 @@ final class CaptureSessionManager: ObservableObject {
             await backend.setAudioBufferLength(normalizedLength)
         }
     }
+}
 
-    private func makeStartConfiguration(
+// MARK: - Start watching
+
+private extension CaptureSessionManager {
+    func makeStartConfiguration(
         deviceID: String,
         muted: Bool,
         volumeLevel: Double,
@@ -289,7 +310,7 @@ final class CaptureSessionManager: ObservableObject {
         )
     }
 
-    private func handleStartWatchingError(_ error: Error) {
+    func handleStartWatchingError(_ error: Error) {
         activeSessionVideoDeviceUniqueID = nil
         nominalVideoFrameRate = nil
         if let captureError = error as? CaptureSessionError {
@@ -307,7 +328,7 @@ final class CaptureSessionManager: ObservableObject {
         statusMessage = error.localizedDescription
     }
 
-    private func applySuccessfulStartWatching(
+    func applySuccessfulStartWatching(
         deviceID: String,
         displayName: String,
         muted: Bool,
@@ -326,18 +347,17 @@ final class CaptureSessionManager: ObservableObject {
         videoSize = await backend.activeVideoSize
         nominalVideoFrameRate = await backend.activeNominalFrameRate
     }
-}
 
-private extension CaptureSessionManager {
     func loadStoredFormatPreferences() {
-        Task.detached(priority: .userInitiated) { [weak self] in
-            let loadedPreferences = CaptureVideoFormatPreferences.loadFromStorage()
-            await self?.applyLoadedFormatPreferences(loadedPreferences)
+        Task(priority: .userInitiated) { [weak self] in
+            let loadedPreferences = await Self.formatPreferencesFromStorage()
+            self?.formatPreferences = loadedPreferences
         }
     }
 
-    @MainActor
-    func applyLoadedFormatPreferences(_ preferences: CaptureVideoFormatPreferences) {
-        formatPreferences = preferences
+    /// Reads the persisted format choice off the main actor.
+    @concurrent
+    nonisolated static func formatPreferencesFromStorage() async -> CaptureVideoFormatPreferences {
+        CaptureVideoFormatPreferences.loadFromStorage()
     }
 }

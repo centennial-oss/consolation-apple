@@ -93,36 +93,30 @@ final class IOSPreviewView: UIView {
     let previewLayer = AVCaptureVideoPreviewLayer()
     private var previewZoomScale: CGFloat = 1
     private var previewPanOffset: CGSize = .zero
-    private var transformObserver: NSObjectProtocol?
-    private var orientationObserver: NSObjectProtocol?
+    private var notificationObservations: [Task<Void, Never>] = []
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         clipsToBounds = true
         layer.addSublayer(previewLayer)
-        transformObserver = NotificationCenter.default.addObserver(
-            forName: CaptureVideoPreviewTransformUserDefaults.changedNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.applyPreviewConnectionSettings()
-        }
-        orientationObserver = NotificationCenter.default.addObserver(
-            forName: UIDevice.orientationDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.schedulePreviewConnectionSettingsRefresh()
-        }
+        let center = NotificationCenter.default
+        let transformChanged = CaptureVideoPreviewTransformUserDefaults.changedNotification
+        notificationObservations = [
+            Task { [weak self] in
+                for await _ in center.notifications(named: transformChanged) {
+                    self?.applyPreviewConnectionSettings()
+                }
+            },
+            Task { [weak self] in
+                for await _ in center.notifications(named: UIDevice.orientationDidChangeNotification) {
+                    self?.schedulePreviewConnectionSettingsRefresh()
+                }
+            }
+        ]
     }
 
     deinit {
-        if let transformObserver {
-            NotificationCenter.default.removeObserver(transformObserver)
-        }
-        if let orientationObserver {
-            NotificationCenter.default.removeObserver(orientationObserver)
-        }
+        notificationObservations.forEach { $0.cancel() }
     }
 
     @available(*, unavailable)

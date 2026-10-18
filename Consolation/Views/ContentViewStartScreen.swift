@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct ContentViewStartScreen: View {
-    @ObservedObject var capture: CaptureSessionManager
+    let capture: CaptureSessionManager
     let showStatusLine: Bool
     @Binding var isShowingAbout: Bool
     @Binding var isShowingHelp: Bool
